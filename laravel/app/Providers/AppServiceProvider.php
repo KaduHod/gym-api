@@ -2,9 +2,9 @@
 
 namespace App\Providers;
 
-use Core\Auth\AuthService;
-use Core\Auth\AuthServiceI;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Passport\Passport;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -13,7 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(AuthService::class, AuthService::class);
+        //$this->app->singleton(AuthService::class, AuthService::class);
+        Passport::tokensExpireIn(now()->addDays(1));
     }
 
     /**
@@ -21,6 +22,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Request::macro('expectsJson', function () {
+            return true;
+        });
     }
 }

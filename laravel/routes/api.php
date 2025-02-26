@@ -1,54 +1,63 @@
 <?php
 
 use App\Http\Requests\CreateUserPostRequest;
+use App\Http\Requests\LoginRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Models\User;
 use App\Models\Joint;
-use Illuminate\Support\Facades\Context;
-use App\Http\Middleware\AuthenticationMiddleware;
+use App\Http\Responses\ApiResponse;
+use Illuminate\Support\Facades\Auth;
 
 Route::post('/user', function(CreateUserPostRequest $request) {
-    $data = $request->validated();
+    $data = $request->only(["name", "email", "password"]);
     $user = User::factory()->create($data);
-    $user->createToken(name: $user->email, expiresAt: (new DateTimeImmutable())->modify("+2 hour"));
+    $token = $user->createToken(name: $user->email)->accessToken;
     $user->save();
-    return response()->json(
-        data:[ "message" => "User created successfully" ],
+    return ApiResponse::success(
+        data: ["token" => $token],
+        message: "User created successfully",
         status: 201
     );
 });
-Route::middleware(AuthenticationMiddleware::class)->get("/joints", function(Request $request) {
-    $joints = Joint::pluck("name");
-    return response()->json([
-        "message" => "Success",
-        "data" => $joints,
-        "meta" => [
-            "has_next" => false,
-            "total_items" => $joints->count(),
-            "page_size" => $joints->count(),
-            "page" => 1
-        ]
-    ]);
-});
-Route::middleware(AuthenticationMiddleware::class)->get("/auth/token", function(Request $request) {
-    try {
-        if(!($user = Context::get("user"))) {
-            return response()->json(["message" => "Internal error. Contact the admin!"], 500);
-        }
-        $token = $user->tokens()->first();
-        return response(
-            content:[
-                "message" => "Success",
-                "access_token" => $token->token,
-                "expires_at" => $token->expires_at
-            ],
-            status: 200
+Route::post("/auth/token", function(LoginRequest $request) {
+    $data = $request->only(["email", "password"]);
+    if(!($user = User::where("email", $data["email"])->first())) {
+        return ApiResponse::error(
+            message: "User not found",
+            status: 404
         );
-    } catch (\Throwable $th) {
-        return response()->json(["message" => $th->getMessage()], 400);
     }
+    if(!Auth::attempt($data)) {
+        return ApiResponse::error(
+            message: "Invalid credentials",
+            status: 401
+        );
+    }
+    return response(
+        content:[
+            "message" => "Success",
+            "access_token" => $user->createToken(name: $user->email)->accessToken,
+        ],
+        status: 200
+    );
 });
-Route::middleware(AuthenticationMiddleware::class)->get("/test", function(Request $request) {
+Route::middleware("auth.api")->group(function() {
+    Route::get("/joints", function(Request $request) {
+        $joints = Joint::pluck("name");
+        print_r($joints);die();
+        return ApiResponse::success(
+            data: $joints,
+            message: "Success",
+            meta: [
+                "has_next" => false,
+                "total_items" => $joints->count(),
+                "page_size" => $joints->count(),
+                "page" => 1
+            ]
+        );
+    });
+});
+/*Route::middleware(AuthenticationMiddleware::class)->get("/test", function(Request $request) {
     return response(200);
-});
+})*/;
