@@ -1,7 +1,0 @@
-
-   PASS  Tests\Unit\ExampleTest
-  ✓ that true is true
-{"message":"Invalid parameters for basic auth"}Array
-(
-    [message] => Invalid parameters for basic auth
-)
