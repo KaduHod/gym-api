@@ -11,6 +11,8 @@ use App\Http\Responses\ApiResponse;
 use App\Models\Movement;
 use App\Models\MuscleGroup;
 use App\Models\MusclePortion;
+use Illuminate\Support\Facades\DB;
+use Utils\General;
 
 Route::post('/user', function(CreateUserPostRequest $request) {
     $data = $request->only(["name", "email", "password"]);
@@ -91,6 +93,47 @@ Route::middleware("auth:api")->group(function() {
                 "total_items" => $collection->total(),
                 "page_size" => $collection->perPage(),
                 "page" => $collection->currentPage(),
+            ]
+        );
+    });
+    Route::get("/mmj", function(Request $request) {
+        $page = General::get("page", $request->query());
+        if(intval($page) < 1) {
+            return ApiResponse::error(
+                message: "Invalid page number",
+                status: 400
+            );
+        }
+        $page = intval($page);;
+        $pageSize = 10;
+        $pageQuery = "LIMIT " . $pageSize . " OFFSET ".$pageSize * ($page);
+        $query = <<<SQL
+SELECT
+    mg.name AS muscle_group_name,
+    mg.id AS muscle_group_id,
+    mp.name AS muscle_portion_name,
+    mp.id AS muscle_portion_id,
+    a.name AS joint_name,
+    a.id AS joint_id,
+    m.name AS movement_name,
+    m.id AS movement_id
+FROM articulation_movement_muscle amm
+INNER JOIN movements m ON m.id = amm.movement_id
+INNER JOIN articulations a ON a.id = amm.articulation_id
+INNER JOIN muscle_portion mp ON mp.id = amm.muscle_portion_id
+INNER JOIN muscle_group mg ON mp.muscle_group_id = mg.id
+$pageQuery
+SQL;
+        $result = DB::select($query);
+        $total = DB::select("SELECT COUNT(*) AS total FROM articulation_movement_muscle")[0]->total;
+        $hasNext = $total > $pageSize * ($page + 1);
+        return ApiResponse::success(
+            data: $result,
+            meta: [
+                "page" => $page,
+                "page_size" => $pageSize,
+                "total_items" => $total,
+                "has_next" => $hasNext,
             ]
         );
     });
